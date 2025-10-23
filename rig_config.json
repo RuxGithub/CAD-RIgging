@@ -1,0 +1,23 @@
+{
+  "units": { "length": "mm", "angle": "deg" },
+  "modules": {
+    "ModuleA": {
+      "nodeName": "Mesh_0",
+      "axes": {
+        "X": { "type": "translate", "scale": 0.001 }
+      }
+    },
+    "ModuleB": {
+      "nodeName": "Mesh_1",
+      "axes": {
+        "Z": { "type": "translate", "scale": 0.001 }
+      }
+    },
+    "ModuleC": {
+      "nodeName": "Mesh_2",
+      "axes": {
+        "ROT_X": { "type": "rotate", "degrees": true }
+      }
+    }
+  }
+}
