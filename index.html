@@ -2,53 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>CADViz MVP</title>
+    <title>Minimal GLB Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./node_modules/three/build/three.module.js",
+          "three/addons/": "./node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
     <style>
       html,
       body {
         margin: 0;
         height: 100%;
+        overflow: hidden;
+        background: #111;
       }
-      #ui {
-        position: fixed;
-        top: 10px;
-        left: 10px;
-        background: #ffffffcc;
-        padding: 8px 10px;
-        border-radius: 8px;
-        font-family: system-ui;
-      }
-      #canvas {
+      #app {
         width: 100vw;
         height: 100vh;
-        display: block;
-      }
-      label {
-        margin-right: 8px;
       }
     </style>
   </head>
   <body>
-    <div id="ui">
-      <button id="playPause">Pause</button>
-      <label
-        >t (ms)
-        <input id="scrub" type="range" min="0" max="10000" value="0" step="1" />
-      </label>
-      <span id="tval">0</span>
-    </div>
-    <canvas id="canvas"></canvas>
-
-    <!-- Three.js from CDN; fine for MVP -->
-    <script type="module">
-      import * as THREE from "https://unpkg.com/three@0.165.0/build/three.module.js";
-      import { OrbitControls } from "https://unpkg.com/three@0.165.0/examples/jsm/controls/OrbitControls.js";
-      import { GLTFLoader } from "https://unpkg.com/three@0.165.0/examples/jsm/loaders/GLTFLoader.js";
-      window.THREE = THREE; // expose for app.js
-      window.OrbitControls = OrbitControls;
-      window.GLTFLoader = GLTFLoader;
-    </script>
+    <div id="app"></div>
+    <!-- We'll write app.js next -->
     <script type="module" src="./app.js"></script>
   </body>
 </html>
