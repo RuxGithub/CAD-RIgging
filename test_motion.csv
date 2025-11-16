@@ -1,0 +1,10 @@
+time_ms,target,path,axis,value
+0,Module_A,position,x,-20
+0,Module_B,position,y,0
+0,Module_C_PIVOT,rotation_deg,x,0
+1000,Module_A,position,x,60
+1000,Module_B,position,y,40
+1000,Module_C_PIVOT,rotation_deg,x,320
+2000,Module_A,position,x,-10
+2000,Module_B,position,y,0
+2000,Module_C_PIVOT,rotation_deg,x,880

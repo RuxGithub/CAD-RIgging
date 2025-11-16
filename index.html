@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Minimal GLB Viewer</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>CADViz – Baseline</title>
     <script type="importmap">
       {
         "imports": {
@@ -18,17 +18,20 @@
         margin: 0;
         height: 100%;
         overflow: hidden;
-        background: #111;
+        background: #0e1116;
       }
-      #app {
-        width: 100vw;
-        height: 100vh;
+      canvas {
+        display: block;
       }
     </style>
   </head>
   <body>
-    <div id="app"></div>
-    <!-- We'll write app.js next -->
     <script type="module" src="./app.js"></script>
   </body>
+  <input
+    type="file"
+    id="csvFile"
+    accept=".csv"
+    style="position: fixed; top: 10px; left: 10px; z-index: 10"
+  />
 </html>
