@@ -121,17 +121,51 @@
         transform: translateY(-1px);
       }
       .floating-loader .loader-icon {
-        width: 28px;
-        height: 28px;
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
         background: radial-gradient(circle at 30% 30%, #7cd3ff, #4f70ff);
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        color: #07142a;
-        font-size: 0.85rem;
-        font-weight: 700;
         box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.35);
+        position: relative;
+        overflow: hidden;
+      }
+      .loader-icon span {
+        position: absolute;
+        display: block;
+        background: #07142a;
+      }
+      .loader-icon .icon-arrow {
+        width: 12px;
+        height: 12px;
+        border: 2px solid #07142a;
+        border-top: none;
+        border-left: none;
+        transform: rotate(45deg);
+        bottom: 8px;
+        left: 9px;
+      }
+      .loader-icon .icon-stem {
+        width: 2px;
+        height: 10px;
+        top: 7px;
+        left: 15px;
+      }
+      .loader-icon .icon-trail {
+        height: 2px;
+        width: 12px;
+        right: 4px;
+        background: rgba(7, 20, 42, 0.6);
+      }
+      .loader-icon .icon-trail.trail-1 {
+        top: 7px;
+      }
+      .loader-icon .icon-trail.trail-2 {
+        top: 12px;
+        width: 9px;
+        right: 7px;
       }
     </style>
   </head>
@@ -158,7 +192,12 @@
       </div>
     </div>
     <button id="openMotionLoader" class="floating-loader" type="button" disabled>
-      <span class="loader-icon" aria-hidden="true"></span>
+      <span class="loader-icon" aria-hidden="true">
+        <span class="icon-arrow"></span>
+        <span class="icon-stem"></span>
+        <span class="icon-trail trail-1"></span>
+        <span class="icon-trail trail-2"></span>
+      </span>
       Load Motion
     </button>
     <script type="module" src="./app.js"></script>
