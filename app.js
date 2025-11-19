@@ -6,6 +6,9 @@ import { initMotionPlayer } from './motionPlayer.js';
 import { initModelPrompt } from './ui/modelPrompt.js';
 import { initMotionPrompt } from './ui/motionPrompt.js';
 import { initComponentSidebar } from './ui/componentSidebar.js';
+import { loadRigConfig } from './config/loadRigConfig.js';
+
+const rigConfigPromise = loadRigConfig();
 
 const { scene, camera, renderer, controls, clock } = initScene();
 const componentSidebar = initComponentSidebar({ scene });
@@ -38,13 +41,14 @@ async function handleModelLoad(sourceUrl) {
   }
 
   try {
+    const rigConfig = await rigConfigPromise;
     const gltf = await loadModel({ url: sourceUrl });
     const model = gltf.scene;
     activeModel = model;
     scene.add(model);
     console.log('[BASE] GLB loaded:', model);
 
-    applyModuleStyling(model);
+    applyModuleStyling(model, rigConfig);
     setupReferencePivots(model);
 
     motion = initMotionPlayer({ model, clock, controls });
@@ -62,23 +66,41 @@ async function handleModelLoad(sourceUrl) {
   }
 }
 
-function applyModuleStyling(model) {
-  const moduleColors = {
-    Body1001: 0xff5555,
-    Body1002: 0x55aaff,
-    Body1003: 0x55ff55,
-  };
+function applyModuleStyling(model, rigConfig) {
+  const modules = rigConfig?.modules;
+  if (!modules) return;
 
-  model.traverse((obj) => {
-    if (!obj.isMesh) return;
-    const baseName = Object.keys(moduleColors).find((name) => obj.name.includes(name));
-    if (baseName) {
+  const fallbackPalette = [
+    '#ff5555', '#55aaff', '#55ff55', '#ffd966', '#f27d42', '#c678ff', '#7df5d1',
+  ];
+  let fallbackIndex = 0;
+
+  for (const [moduleName, moduleInfo] of Object.entries(modules)) {
+    const nodeName = moduleInfo.nodeName;
+    if (!nodeName) continue;
+    const targets = [];
+    model.traverse((obj) => {
+      if (obj.isMesh && obj.name === nodeName) {
+        targets.push(obj);
+      }
+    });
+    if (!targets.length) continue;
+
+    const colorValue = moduleInfo.color || fallbackPalette[fallbackIndex++ % fallbackPalette.length];
+    let colorHex = 0xffffff;
+    try {
+      colorHex = new THREE.Color(colorValue).getHex();
+    } catch (err) {
+      console.warn(`[BASE] Invalid color for ${moduleName}:`, colorValue, err);
+    }
+
+    targets.forEach((obj) => {
       obj.material = obj.material.clone();
-      obj.material.color.setHex(moduleColors[baseName]);
+      obj.material.color.setHex(colorHex);
       obj.material.needsUpdate = true;
       obj.material.emissive.setHex(0x222222);
-    }
-  });
+    });
+  }
 }
 
 function setupReferencePivots(model) {
@@ -120,4 +142,3 @@ function makePivot(target, mode = 'center') {
 
   return addPivotAt(target, worldPivot);
 }
-

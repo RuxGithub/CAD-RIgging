@@ -2,19 +2,22 @@
   "units": { "length": "mm", "angle": "deg" },
   "modules": {
     "ModuleA": {
-      "nodeName": "Mesh_0",
+      "nodeName": "Body1001",
+      "color": "#ff5555",
       "axes": {
         "X": { "type": "translate", "scale": 0.001 }
       }
     },
     "ModuleB": {
-      "nodeName": "Mesh_1",
+      "nodeName": "Body1002",
+      "color": "#55aaff",
       "axes": {
         "Z": { "type": "translate", "scale": 0.001 }
       }
     },
     "ModuleC": {
-      "nodeName": "Mesh_2",
+      "nodeName": "Body1003",
+      "color": "#55ff55",
       "axes": {
         "ROT_X": { "type": "rotate", "degrees": true }
       }
