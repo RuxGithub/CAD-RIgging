@@ -8,11 +8,14 @@ import { initMotionPlayer } from './motionPlayer.js';   // 👈 add this
 
 let motion = null; 
 let motionLoaderUI = null;
+let modelOverviewUI = null;
+let highlightBoxes = [];
 
 let scene, camera, renderer, controls, clock;
 
 init();
 motionLoaderUI = initMotionPrompt();
+modelOverviewUI = initModelOverview();
 initModelPrompt();
 animate();
 
@@ -205,6 +208,120 @@ function initMotionPrompt() {
   };
 }
 
+function initModelOverview() {
+  const container = document.getElementById('componentSidebar');
+  const toggleBtn = document.getElementById('componentSidebarToggle');
+  const listEl = document.getElementById('modelComponentList');
+  const summaryEl = document.getElementById('modelComponentSummary');
+
+  if (!container || !toggleBtn || !listEl || !summaryEl) {
+    console.warn('[BASE] Component sidebar UI missing; component lookup disabled.');
+    return {
+      populate() {},
+      reset() {},
+      setCollapsed() {},
+    };
+  }
+
+  let activeButton = null;
+  let isReady = false;
+
+  const isCollapsed = () => container.classList.contains('collapsed');
+  const setCollapsed = (collapsed) => {
+    container.classList.toggle('collapsed', collapsed);
+    toggleBtn.setAttribute('aria-expanded', String(!collapsed));
+  };
+  const setDisabled = (disabled) => {
+    container.classList.toggle('disabled', disabled);
+    toggleBtn.disabled = disabled;
+  };
+
+  const renderEmpty = (message) => {
+    listEl.innerHTML = '';
+    const empty = document.createElement('div');
+    empty.className = 'overview-empty';
+    empty.textContent = message;
+    listEl.appendChild(empty);
+  };
+
+  const reset = () => {
+    isReady = false;
+    activeButton = null;
+    summaryEl.textContent = 'Load a model to inspect components';
+    renderEmpty('Load a model to list all named meshes here.');
+    clearHighlightHelpers();
+    setDisabled(true);
+    setCollapsed(true);
+  };
+
+  toggleBtn.addEventListener('click', () => {
+    if (!isReady) return;
+    setCollapsed(!isCollapsed());
+  });
+
+  function populate(model) {
+    activeButton = null;
+    listEl.innerHTML = '';
+    clearHighlightHelpers();
+
+    const nameMap = new Map();
+    model.traverse((obj) => {
+      if (!obj.isMesh || !obj.name) return;
+      if (!nameMap.has(obj.name)) nameMap.set(obj.name, []);
+      nameMap.get(obj.name).push(obj);
+    });
+
+    const entries = Array.from(nameMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    summaryEl.textContent = entries.length
+      ? `${entries.length} components detected`
+      : 'No components detected';
+
+    if (!entries.length) {
+      renderEmpty('No mesh nodes with names were found in this model.');
+    } else {
+      for (const [name, nodes] of entries) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'overview-item';
+        button.textContent = name;
+        button.addEventListener('click', () => {
+          highlightComponents(nodes);
+          if (activeButton) activeButton.classList.remove('active');
+          button.classList.add('active');
+          activeButton = button;
+        });
+        listEl.appendChild(button);
+      }
+    }
+
+    isReady = true;
+    setDisabled(false);
+  }
+
+  reset();
+
+  return { populate, reset, setCollapsed };
+}
+
+function clearHighlightHelpers() {
+  for (const { helper } of highlightBoxes) {
+    scene.remove(helper);
+    helper.geometry?.dispose?.();
+    helper.material?.dispose?.();
+  }
+  highlightBoxes = [];
+}
+
+function highlightComponents(objects) {
+  if (!Array.isArray(objects) || !objects.length) return;
+  clearHighlightHelpers();
+  highlightBoxes = objects.map((object) => {
+    const helper = new THREE.BoxHelper(object, 0x76a5ff);
+    scene.add(helper);
+    return { helper, object };
+  });
+}
+
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -256,6 +373,8 @@ function loadModel(sourceUrl, { onSuccess, onError, onFinally } = {}) {
   }
 
   motionLoaderUI?.disableTrigger?.();
+  modelOverviewUI?.reset?.();
+  clearHighlightHelpers();
 
   const loader = new GLTFLoader();
   const dracoLoader = new DRACOLoader();
@@ -276,30 +395,10 @@ function loadModel(sourceUrl, { onSuccess, onError, onFinally } = {}) {
       scene.add(model);
       console.log('[BASE] GLB loaded:', model);
 
-      const moduleColors = {
-        Body1001: 0xff5555,  // red
-        Body1002: 0x55aaff,  // blue
-        Body1003: 0x55ff55,  // green
-      };
-
-      model.traverse((obj) => {
-        if (!obj.isMesh) return;
-        const baseName = Object.keys(moduleColors).find(name => obj.name.includes(name));
-        if (baseName) {
-          // clone the material so each module has independent color control
-          obj.material = obj.material.clone();
-          obj.material.color.setHex(moduleColors[baseName]);
-          obj.material.needsUpdate = true;
-          obj.material.emissive.setHex(0x222222);
-        }
-      });
-
       // (optional) see what names are available to target in CSV
       model.traverse(o => { if (o.name) console.log('[NODE]', o.name); });
 
       // Example: wrap a couple of modules with pivots at their geometric center (or 'bottom')
-      const moduleA = model.getObjectByName('Module_A');
-      const moduleB = model.getObjectByName('Module_B');
       const moduleC = model.getObjectByName('Module_C');
 
       // const pivotA = moduleA ? makePivot(moduleA, 'base') : null;
@@ -311,6 +410,8 @@ function loadModel(sourceUrl, { onSuccess, onError, onFinally } = {}) {
       motion = initMotionPlayer({ model, clock, controls });
       motionLoaderUI?.setOnLoad?.((csvText) => motion.loadCSVText(csvText));
       motionLoaderUI?.enableTrigger?.();
+      modelOverviewUI?.populate?.(model);
+      modelOverviewUI?.setCollapsed?.(false);
       motionLoaderUI?.show?.();
 
       onSuccess?.(gltf);
@@ -338,6 +439,11 @@ function loadModel(sourceUrl, { onSuccess, onError, onFinally } = {}) {
 function animate() {
   requestAnimationFrame(animate);
   if (motion) motion.update();
+  if (highlightBoxes.length) {
+    for (const { helper, object } of highlightBoxes) {
+      helper.update(object);
+    }
+  }
   controls.update();
   renderer.render(scene, camera);
 }
