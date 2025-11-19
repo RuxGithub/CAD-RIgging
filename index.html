@@ -38,7 +38,7 @@
       <div class="component-sidebar__content">
         <div class="sidebar-tabs" role="tablist">
           <button class="sidebar-tab active" data-tab="components" type="button">Components</button>
-          <button class="sidebar-tab" data-tab="camera" type="button">Camera</button>
+          <button class="sidebar-tab" data-tab="environment" type="button">Environment</button>
           <button class="sidebar-tab" data-tab="motion" type="button">Motion</button>
         </div>
         <div class="sidebar-panels">
@@ -55,10 +55,10 @@
               Collapse this sidebar any time using the toggle tab on the right edge.
             </p>
           </section>
-          <section class="sidebar-panel" data-panel="camera">
+          <section class="sidebar-panel" data-panel="environment">
             <div class="overview-header">
-              <h2>Camera settings</h2>
-              <p>Snap between presets or adjust tween duration.</p>
+              <h2>Environment settings</h2>
+              <p>Adjust lighting and camera presets for the current scene.</p>
             </div>
             <div class="sidebar-group">
               <label for="cameraPresetSelect">Preset</label>
@@ -83,6 +83,13 @@
               <label>Quick views</label>
               <div class="chip-row" id="cameraQuickButtons"></div>
             </div>
+            <label class="switch">
+              <input type="checkbox" id="evenLightingToggle" />
+              Even lighting
+            </label>
+            <p class="overview-hint">
+              Even lighting uses ambient illumination so the rig stays evenly lit from all angles.
+            </p>
           </section>
           <section class="sidebar-panel" data-panel="motion">
             <div class="overview-header">

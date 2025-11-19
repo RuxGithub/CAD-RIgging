@@ -10,8 +10,12 @@ import { loadRigConfig } from './config/loadRigConfig.js';
 
 const rigConfigPromise = loadRigConfig();
 
-const { scene, camera, renderer, controls, clock } = initScene();
-const componentSidebar = initComponentSidebar({ scene });
+const { scene, camera, renderer, controls, clock, setEvenLighting, getEvenLighting } = initScene();
+const componentSidebar = initComponentSidebar({
+  scene,
+  onEvenLightingChange: setEvenLighting,
+  initialEvenLighting: getEvenLighting(),
+});
 const cameraController = initCameraPresets({
   camera,
   controls,

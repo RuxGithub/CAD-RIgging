@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export function initComponentSidebar({ scene }) {
+export function initComponentSidebar({ scene, onEvenLightingChange, initialEvenLighting = false }) {
   const container = document.getElementById('componentSidebar');
   const toggleBtn = document.getElementById('componentSidebarToggle');
   const listEl = document.getElementById('modelComponentList');
@@ -12,6 +12,7 @@ export function initComponentSidebar({ scene }) {
   const cameraDurationInput = document.getElementById('cameraDurationInput');
   const cameraDurationValue = document.getElementById('cameraDurationValue');
   const cameraQuickButtons = document.getElementById('cameraQuickButtons');
+  const evenLightingToggle = document.getElementById('evenLightingToggle');
 
   const motionPlayButton = document.getElementById('motionPlayButton');
   const motionPauseButton = document.getElementById('motionPauseButton');
@@ -255,7 +256,28 @@ export function initComponentSidebar({ scene }) {
   });
   motionLoopToggle?.addEventListener('change', (e) => motionCtrl?.setLoop?.(e.target.checked));
 
+  if (evenLightingToggle) {
+    evenLightingToggle.checked = initialEvenLighting;
+    evenLightingToggle.addEventListener('change', (e) => {
+      onEvenLightingChange?.(e.target.checked);
+    });
+  }
+
   reset();
 
-  return { populate, reset, setCollapsed, attachCameraController, bindMotionControls, syncCameraPreset, clearHighlightHelpers, updateHighlights };
+  const setEvenLightingToggle = (value) => {
+    if (evenLightingToggle) evenLightingToggle.checked = Boolean(value);
+  };
+
+  return {
+    populate,
+    reset,
+    setCollapsed,
+    attachCameraController,
+    bindMotionControls,
+    syncCameraPreset,
+    clearHighlightHelpers,
+    updateHighlights,
+    setEvenLightingToggle,
+  };
 }

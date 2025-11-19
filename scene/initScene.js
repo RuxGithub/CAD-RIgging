@@ -23,6 +23,8 @@ export function initScene() {
   const dir = new THREE.DirectionalLight(0xffffff, 6);
   dir.position.set(5, 10, 7);
   scene.add(dir);
+  const ambient = new THREE.AmbientLight(0xffffff, 0);
+  scene.add(ambient);
 
   const grid = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
   grid.position.y = 0;
@@ -33,6 +35,27 @@ export function initScene() {
   scene.add(axes);
 
   const clock = new THREE.Clock();
+
+  let evenLighting = false;
+  const applyLightingProfile = () => {
+    if (evenLighting) {
+      hemi.intensity = 1.2;
+      hemi.groundColor.setHex(0x666666);
+      dir.intensity = 0.8;
+      ambient.intensity = 1.0;
+    } else {
+      hemi.intensity = 3;
+      hemi.groundColor.setHex(0x222233);
+      dir.intensity = 6;
+      ambient.intensity = 0.2;
+    }
+  };
+  const setEvenLighting = (enabled) => {
+    evenLighting = Boolean(enabled);
+    applyLightingProfile();
+  };
+  const getEvenLighting = () => evenLighting;
+  applyLightingProfile();
 
   const onWindowResize = () => {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -47,6 +70,7 @@ export function initScene() {
     renderer,
     controls,
     clock,
+    setEvenLighting,
+    getEvenLighting,
   };
 }
-
