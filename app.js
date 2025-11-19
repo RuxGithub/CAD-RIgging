@@ -10,12 +10,14 @@ let motion = null;
 let motionLoaderUI = null;
 let modelOverviewUI = null;
 let highlightBoxes = [];
+let cameraController = null;
 
 let scene, camera, renderer, controls, clock;
 
 init();
 motionLoaderUI = initMotionPrompt();
 modelOverviewUI = initModelOverview();
+modelOverviewUI?.attachCameraController?.(cameraController);
 initModelPrompt();
 animate();
 
@@ -40,7 +42,11 @@ function init() {
   controls.enableDamping = true;
   controls.target.set(0, 0, 0);
 
-  const cams = initCameraPresets({ camera, controls });
+  cameraController = initCameraPresets({
+    camera,
+    controls,
+    onPresetChange: (name) => modelOverviewUI?.syncCameraPreset?.(name),
+  });
 
   // Lights
   const hemi = new THREE.HemisphereLight(0xffffff, 0x222233, 3);
@@ -213,6 +219,23 @@ function initModelOverview() {
   const toggleBtn = document.getElementById('componentSidebarToggle');
   const listEl = document.getElementById('modelComponentList');
   const summaryEl = document.getElementById('modelComponentSummary');
+  const tabButtons = container?.querySelectorAll('.sidebar-tab') ?? [];
+  const panels = container?.querySelectorAll('.sidebar-panel') ?? [];
+
+  const cameraPresetSelect = document.getElementById('cameraPresetSelect');
+  const cameraDurationInput = document.getElementById('cameraDurationInput');
+  const cameraDurationValue = document.getElementById('cameraDurationValue');
+  const cameraQuickButtons = document.getElementById('cameraQuickButtons');
+
+  const motionPlayButton = document.getElementById('motionPlayButton');
+  const motionPauseButton = document.getElementById('motionPauseButton');
+  const motionStopButton = document.getElementById('motionStopButton');
+  const motionProgress = document.getElementById('motionProgress');
+  const motionProgressValue = document.getElementById('motionProgressValue');
+  const motionSpeed = document.getElementById('motionSpeed');
+  const motionSpeedValue = document.getElementById('motionSpeedValue');
+  const motionLoopToggle = document.getElementById('motionLoopToggle');
+  const motionStatusText = document.getElementById('motionStatusText');
 
   if (!container || !toggleBtn || !listEl || !summaryEl) {
     console.warn('[BASE] Component sidebar UI missing; component lookup disabled.');
@@ -220,11 +243,15 @@ function initModelOverview() {
       populate() {},
       reset() {},
       setCollapsed() {},
+      attachCameraController() {},
+      bindMotionControls() {},
     };
   }
 
   let activeButton = null;
   let isReady = false;
+  let cameraCtrl = null;
+  let motionCtrl = null;
 
   const isCollapsed = () => container.classList.contains('collapsed');
   const setCollapsed = (collapsed) => {
@@ -252,7 +279,20 @@ function initModelOverview() {
     clearHighlightHelpers();
     setDisabled(true);
     setCollapsed(true);
+    setActiveTab('components');
+    motionCtrl?.setStateListener?.(null);
+    motionCtrl = null;
+    setMotionControlsDisabled(true);
   };
+
+  const setActiveTab = (tabName) => {
+    tabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tabName));
+    panels.forEach((panel) => panel.classList.toggle('active', panel.dataset.panel === tabName));
+  };
+
+  tabButtons.forEach((btn) => {
+    btn.addEventListener('click', () => setActiveTab(btn.dataset.tab));
+  });
 
   toggleBtn.addEventListener('click', () => {
     if (!isReady) return;
@@ -298,9 +338,115 @@ function initModelOverview() {
     setDisabled(false);
   }
 
+  function syncCameraPreset(name) {
+    if (!name || !cameraPresetSelect) return;
+    cameraPresetSelect.value = name;
+    if (cameraQuickButtons) {
+      cameraQuickButtons.querySelectorAll('button').forEach((btn) => {
+        btn.classList.toggle('active', btn.dataset.preset === name);
+      });
+    }
+  }
+
+  function attachCameraController(controller) {
+    cameraCtrl = controller;
+    if (!cameraPresetSelect || !cameraCtrl) return;
+    const presetNames = Object.keys(cameraCtrl.presets ?? {});
+    cameraPresetSelect.innerHTML = '';
+    presetNames.forEach((name) => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      cameraPresetSelect.appendChild(option);
+    });
+    cameraPresetSelect.value = cameraCtrl.getPreset?.() ?? presetNames[0];
+    if (cameraDurationInput && cameraDurationValue) {
+      const duration = cameraCtrl.getDuration?.() ?? 500;
+      cameraDurationInput.value = duration;
+      cameraDurationValue.textContent = `${Math.round(duration)} ms`;
+    }
+    if (cameraQuickButtons) {
+      cameraQuickButtons.innerHTML = '';
+      presetNames.slice(0, 3).forEach((name) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chip-button';
+        btn.textContent = name;
+        btn.dataset.preset = name;
+        btn.addEventListener('click', () => {
+          cameraCtrl.set?.(name);
+          syncCameraPreset(name);
+        });
+        cameraQuickButtons.appendChild(btn);
+      });
+    }
+    syncCameraPreset(cameraCtrl.getPreset?.() ?? presetNames[0]);
+  }
+
+  cameraPresetSelect?.addEventListener('change', (e) => {
+    cameraCtrl?.set?.(e.target.value);
+    syncCameraPreset(e.target.value);
+  });
+
+  cameraDurationInput?.addEventListener('input', (e) => {
+    if (!cameraCtrl) return;
+    const result = cameraCtrl.setDuration?.(Number(e.target.value));
+    if (result != null && cameraDurationValue) {
+      cameraDurationValue.textContent = `${Math.round(result)} ms`;
+    }
+  });
+
+  function bindMotionControls(controller) {
+    motionCtrl?.setStateListener?.(null);
+    motionCtrl = controller;
+    motionCtrl?.setStateListener?.(handleMotionState);
+    const enabled = Boolean(controller);
+    setMotionControlsDisabled(!enabled);
+  }
+
+  function setMotionControlsDisabled(disabled) {
+    [motionPlayButton, motionPauseButton, motionStopButton, motionProgress, motionSpeed, motionLoopToggle]
+      .forEach((el) => { if (el) el.disabled = disabled; });
+    if (motionStatusText && disabled) {
+      motionStatusText.textContent = 'No motion file loaded.';
+    }
+  }
+
+  function handleMotionState(state) {
+    if (!state) return;
+    const { playing, loop, speed, progress, timeMs, durationMs } = state;
+    if (motionPlayButton) motionPlayButton.disabled = false;
+    if (motionPauseButton) motionPauseButton.disabled = !playing;
+    if (motionProgress) motionProgress.value = String(progress ?? 0);
+    if (motionSpeed) motionSpeed.value = String(speed ?? 1);
+    if (motionLoopToggle) motionLoopToggle.checked = loop ?? true;
+    if (motionProgressValue) {
+      const pct = ((progress ?? 0) * 100).toFixed(1);
+      motionProgressValue.textContent = `${pct}%`;
+    }
+    if (motionSpeedValue) motionSpeedValue.textContent = `${(speed ?? 1).toFixed(1)}x`;
+    if (motionStatusText) {
+      const secs = ((timeMs ?? 0) / 1000).toFixed(2);
+      const total = ((durationMs ?? 0) / 1000).toFixed(2);
+      motionStatusText.textContent = playing
+        ? `Playing... ${secs}s / ${total}s`
+        : `Idle at ${secs}s / ${total}s`;
+    }
+  }
+
+  motionPlayButton?.addEventListener('click', () => motionCtrl?.play?.());
+  motionPauseButton?.addEventListener('click', () => motionCtrl?.pause?.());
+  motionStopButton?.addEventListener('click', () => motionCtrl?.stop?.());
+  motionProgress?.addEventListener('input', (e) => motionCtrl?.setProgress?.(Number(e.target.value)));
+  motionSpeed?.addEventListener('input', (e) => {
+    motionCtrl?.setSpeed?.(Number(e.target.value));
+    if (motionSpeedValue) motionSpeedValue.textContent = `${Number(e.target.value).toFixed(1)}x`;
+  });
+  motionLoopToggle?.addEventListener('change', (e) => motionCtrl?.setLoop?.(e.target.checked));
+
   reset();
 
-  return { populate, reset, setCollapsed };
+  return { populate, reset, setCollapsed, attachCameraController, bindMotionControls, syncCameraPreset };
 }
 
 function clearHighlightHelpers() {
@@ -412,6 +558,7 @@ function loadModel(sourceUrl, { onSuccess, onError, onFinally } = {}) {
       motionLoaderUI?.enableTrigger?.();
       modelOverviewUI?.populate?.(model);
       modelOverviewUI?.setCollapsed?.(false);
+      modelOverviewUI?.bindMotionControls?.(motion);
       motionLoaderUI?.show?.();
 
       onSuccess?.(gltf);

@@ -1,13 +1,10 @@
 import * as THREE from 'three';
-import { GUI as LilGUI } from 'three/addons/libs/lil-gui.module.min.js';
 
 // small helpers
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-export function initCameraPresets({ camera, controls }) {
-  const gui = new LilGUI({ title: 'Camera' });
-
+export function initCameraPresets({ camera, controls, onPresetChange } = {}) {
   // sensible defaults; tweak distances to your model size if needed
   const presets = {
     Front: { pos: new THREE.Vector3(0, 0, 0.4), target: new THREE.Vector3(0, 0, 0) },
@@ -19,8 +16,6 @@ export function initCameraPresets({ camera, controls }) {
   };
 
   const state = { preset: 'ISO', duration: 500 };
-  gui.add(state, 'preset', Object.keys(presets)).name('Preset').onChange((k) => tweenTo(presets[k]));
-  gui.add(state, 'duration', 100, 3000, 50).name('Tween (ms)');
 
   function tweenTo({ pos, target }) {
     const startPos = camera.position.clone();
@@ -48,22 +43,34 @@ export function initCameraPresets({ camera, controls }) {
     requestAnimationFrame(step);
   }
 
+  function setPreset(name) {
+    const preset = presets[name] ? name : 'ISO';
+    state.preset = preset;
+    tweenTo(presets[preset]);
+    onPresetChange?.(preset);
+  }
+
   // keyboard shortcuts 1..6
   const keyMap = { '1': 'Front', '2': 'Back', '3': 'Left', '4': 'Right', '5': 'Top', '6': 'ISO' };
   window.addEventListener('keydown', (e) => {
     const name = keyMap[e.key];
     if (name) {
-      state.preset = name;
-      gui.controllers?.[0]?.setValue?.(name);
-      tweenTo(presets[name]);
+      setPreset(name);
     }
   });
 
   // go to default
-  tweenTo(presets[state.preset]);
+  setPreset(state.preset);
 
   return {
-    set: (name) => tweenTo(presets[name] ?? presets.ISO),
+    set: (name) => setPreset(name),
     presets,
+    getPreset: () => state.preset,
+    getDuration: () => state.duration,
+    setDuration: (ms) => {
+      const clamped = THREE.MathUtils.clamp(ms, 100, 10000);
+      state.duration = clamped;
+      return clamped;
+    },
   };
 }

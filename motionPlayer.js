@@ -1,11 +1,10 @@
-// motionPlayer.js — tiny CSV motion player (long-form schema)
+import * as THREE from 'three';
+
+// motionPlayer.js – tiny CSV motion player (long-form schema)
 // time_ms,target,path,axis,value
 // 0,Module_A,position,x,0
 // 1000,Module_A,position,x,10
 // 2000,Module_A,rotation_deg,z,90
-
-import * as THREE from 'three';
-import { GUI as LilGUI } from 'three/addons/libs/lil-gui.module.min.js';
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -94,13 +93,23 @@ export function initMotionPlayer({ model, clock, controls }) {
   let loop = true;
   let speed = 1.0;
   let t = 0; // ms
+  let stateListener = null;
+  let lastEmit = 0;
 
-  const gui = new LilGUI({ title: 'Motion' });
-  const state = { play: () => playing = true, pause: () => playing = false, stop: () => { playing = false; t = 0; }, speed: 1.0, loop: true, scrub: 0 };
-  gui.add(state, 'play'); gui.add(state, 'pause'); gui.add(state, 'stop');
-  gui.add(state, 'speed', 0.1, 5, 0.1).onChange((v) => speed = v);
-  gui.add(state, 'loop').onChange((v) => loop = v);
-  const scrubCtrl = gui.add(state, 'scrub', 0, 1, 0.0001).name('Scrub');
+  function emitState(force = false) {
+    if (!stateListener) return;
+    const now = performance.now?.() ?? Date.now();
+    if (!force && now - lastEmit < 100) return;
+    lastEmit = now;
+    stateListener({
+      playing,
+      loop,
+      speed,
+      timeMs: t,
+      durationMs: compiled.duration,
+      progress: compiled.duration ? t / compiled.duration : 0,
+    });
+  }
 
   function loadCSVText(text) {
     const rows = parseCSV(text);
@@ -108,9 +117,8 @@ export function initMotionPlayer({ model, clock, controls }) {
     if (rows.length && isNaN(Number(rows[0][0]))) dataRows = rows.slice(1); // drop header
     compiled = buildTracks(dataRows);
     t = 0;
-    state.scrub = 0;
-    scrubCtrl.setValue(0);
-    console.log(`[Motion] Loaded CSV — duration ${compiled.duration} ms, tracks ${compiled.tracks.size}`);
+    emitState(true);
+    console.log(`[Motion] Loaded CSV – duration ${compiled.duration} ms, tracks ${compiled.tracks.size}`);
   }
 
   function attachFileInput(selector) {
@@ -126,23 +134,70 @@ export function initMotionPlayer({ model, clock, controls }) {
   }
 
   function update() {
-    if (!playing) {
-      const desired = state.scrub * compiled.duration;
-      if (Math.abs(desired - t) > 0.5) {
-        t = desired;
-        applyAtTime(modelIndex, compiled.tracks, t);
-      }
-      return;
-    }
+    if (!playing) return;
     const dt = clock ? clock.getDelta() * 1000 : 16.67;
     t += dt * speed;
     if (t > compiled.duration) {
       if (loop) t = t % compiled.duration; else { t = compiled.duration; playing = false; }
     }
-    state.scrub = compiled.duration ? t / compiled.duration : 0;
     applyAtTime(modelIndex, compiled.tracks, t);
     controls?.update?.();
+    emitState();
   }
 
-  return { update, attachFileInput, loadCSVText, getState: () => ({ playing, loop, speed, t, duration: compiled.duration }) };
+  function play() {
+    if (!compiled.tracks.size) return;
+    playing = true;
+    emitState(true);
+  }
+
+  function pause() {
+    playing = false;
+    emitState(true);
+  }
+
+  function stop() {
+    playing = false;
+    t = 0;
+    applyAtTime(modelIndex, compiled.tracks, t);
+    emitState(true);
+  }
+
+  function setSpeed(value) {
+    if (!Number.isFinite(value)) return;
+    speed = Math.max(0.1, Math.min(10, value));
+    emitState(true);
+  }
+
+  function setLoop(value) {
+    loop = Boolean(value);
+    emitState(true);
+  }
+
+  function setProgress(normalized) {
+    const clamped = clamp01(Number(normalized) || 0);
+    t = compiled.duration * clamped;
+    applyAtTime(modelIndex, compiled.tracks, t);
+    emitState(true);
+  }
+
+  function setStateListener(fn) {
+    stateListener = typeof fn === 'function' ? fn : null;
+    emitState(true);
+  }
+
+  return {
+    update,
+    attachFileInput,
+    loadCSVText,
+    getState: () => ({ playing, loop, speed, timeMs: t, durationMs: compiled.duration }),
+    play,
+    pause,
+    stop,
+    setSpeed,
+    setLoop,
+    setProgress,
+    setStateListener,
+  };
 }
+
