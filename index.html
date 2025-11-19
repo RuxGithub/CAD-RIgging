@@ -19,19 +19,148 @@
         height: 100%;
         overflow: hidden;
         background: #0e1116;
+        font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+        color: #f6f7fb;
       }
       canvas {
         display: block;
       }
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(4, 6, 11, 0.9);
+        z-index: 50;
+        transition: opacity 200ms ease;
+      }
+      .modal-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .modal-panel {
+        width: min(430px, calc(100% - 48px));
+        padding: 2.5rem 2rem;
+        border-radius: 18px;
+        background: linear-gradient(145deg, #161b25, #0d111a);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.55);
+        text-align: center;
+      }
+      .modal-panel h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.35rem;
+      }
+      .modal-panel p {
+        margin: 0 0 1.5rem;
+        line-height: 1.4;
+        color: #c6c9d8;
+      }
+      .modal-file {
+        border: 1px dashed rgba(255, 255, 255, 0.3);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .modal-file input {
+        width: 100%;
+        color: #f6f7fb;
+      }
+      .modal-button {
+        width: 100%;
+        padding: 0.9rem 1rem;
+        border-radius: 999px;
+        border: none;
+        background: #4f8dfd;
+        color: #fff;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+        transition: background 150ms ease, opacity 150ms ease;
+      }
+      .modal-button:hover:not(:disabled) {
+        background: #76a5ff;
+      }
+      .modal-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+      .modal-button.secondary {
+        margin-top: 0.75rem;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        color: #e3e6f5;
+      }
+      .floating-loader {
+        position: fixed;
+        top: 14px;
+        left: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.55rem 1rem 0.55rem 0.6rem;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(9, 12, 19, 0.85);
+        box-shadow: 0 12px 25px rgba(0, 0, 0, 0.45);
+        color: #dfe6fd;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        backdrop-filter: blur(15px);
+        z-index: 20;
+        transition: transform 140ms ease, opacity 140ms ease;
+      }
+      .floating-loader:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .floating-loader:not(:disabled):hover {
+        transform: translateY(-1px);
+      }
+      .floating-loader .loader-icon {
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 30%, #7cd3ff, #4f70ff);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #07142a;
+        font-size: 0.85rem;
+        font-weight: 700;
+        box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.35);
+      }
     </style>
   </head>
   <body>
+    <div id="modelPrompt" class="modal-overlay">
+      <div class="modal-panel">
+        <h1>Load a model</h1>
+        <p>Select a <strong>.glb</strong> or <strong>.gltf</strong> file to start exploring the rig.</p>
+        <div class="modal-file">
+          <input type="file" id="modelFile" accept=".glb,.gltf" />
+        </div>
+        <button id="modelLoadButton" class="modal-button" disabled>Load Model</button>
+      </div>
+    </div>
+    <div id="motionPrompt" class="modal-overlay hidden">
+      <div class="modal-panel">
+        <h1>Load motion data</h1>
+        <p>Drop in a CSV exported from CADViz motion capture to animate the loaded rig.</p>
+        <div class="modal-file">
+          <input type="file" id="motionFile" accept=".csv" />
+        </div>
+        <button id="motionLoadButton" class="modal-button" disabled>Load Motion</button>
+        <button id="motionCancelButton" class="modal-button secondary" type="button">Skip for now</button>
+      </div>
+    </div>
+    <button id="openMotionLoader" class="floating-loader" type="button" disabled>
+      <span class="loader-icon" aria-hidden="true"></span>
+      Load Motion
+    </button>
     <script type="module" src="./app.js"></script>
   </body>
-  <input
-    type="file"
-    id="csvFile"
-    accept=".csv"
-    style="position: fixed; top: 10px; left: 10px; z-index: 10"
-  />
 </html>

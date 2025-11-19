@@ -7,11 +7,13 @@ import { initCameraPresets } from './cameraPresets.js';
 import { initMotionPlayer } from './motionPlayer.js';   // 👈 add this
 
 let motion = null; 
+let motionLoaderUI = null;
 
 let scene, camera, renderer, controls, clock;
 
 init();
-loadModel();
+motionLoaderUI = initMotionPrompt();
+initModelPrompt();
 animate();
 
 function init() {
@@ -60,6 +62,149 @@ function init() {
   window.addEventListener('resize', onWindowResize);
 }
 
+function initModelPrompt() {
+  const modal = document.getElementById('modelPrompt');
+  const fileInput = document.getElementById('modelFile');
+  const loadButton = document.getElementById('modelLoadButton');
+
+  if (!modal || !fileInput || !loadButton) {
+    console.warn('[BASE] Model picker UI missing; loading bundled GLB.');
+    loadModel('./assets/model.glb');
+    return;
+  }
+
+  let isLoading = false;
+  const hasSelection = () => Boolean(fileInput.files && fileInput.files.length);
+  const updateButtonState = () => {
+    if (isLoading) {
+      loadButton.textContent = 'Loading...';
+      loadButton.disabled = true;
+    } else {
+      loadButton.textContent = 'Load Model';
+      loadButton.disabled = !hasSelection();
+    }
+  };
+
+  fileInput.addEventListener('change', () => {
+    if (!isLoading) updateButtonState();
+  });
+
+  loadButton.addEventListener('click', () => {
+    if (!hasSelection() || isLoading) return;
+    isLoading = true;
+    updateButtonState();
+    const file = fileInput.files[0];
+    const objectUrl = URL.createObjectURL(file);
+    loadModel(objectUrl, {
+      onSuccess: () => {
+        modal.classList.add('hidden');
+        fileInput.value = '';
+      },
+      onError: () => {
+        alert('Unable to load that GLB/GLTF file. Please verify the file and try again.');
+      },
+      onFinally: () => {
+        URL.revokeObjectURL(objectUrl);
+        isLoading = false;
+        updateButtonState();
+      },
+    });
+  });
+
+  updateButtonState();
+}
+
+function initMotionPrompt() {
+  const overlay = document.getElementById('motionPrompt');
+  const fileInput = document.getElementById('motionFile');
+  const loadButton = document.getElementById('motionLoadButton');
+  const cancelButton = document.getElementById('motionCancelButton');
+  const triggerButton = document.getElementById('openMotionLoader');
+
+  if (!overlay || !fileInput || !loadButton || !triggerButton) {
+    console.warn('[BASE] Motion picker UI missing; CSV reload disabled.');
+    return {
+      show() {},
+      enableTrigger() {},
+      disableTrigger() {},
+      setOnLoad() {},
+    };
+  }
+
+  let onLoadHandler = null;
+  let isReady = false;
+  let isLoading = false;
+
+  const hasSelection = () => Boolean(fileInput.files && fileInput.files.length);
+  const updateLoadButton = () => {
+    if (isLoading) {
+      loadButton.textContent = 'Loading...';
+      loadButton.disabled = true;
+    } else {
+      loadButton.textContent = 'Load Motion';
+      loadButton.disabled = !hasSelection();
+    }
+  };
+  const closeOverlay = () => {
+    overlay.classList.add('hidden');
+    fileInput.value = '';
+    isLoading = false;
+    updateLoadButton();
+  };
+  const openOverlay = () => {
+    if (!isReady) return;
+    overlay.classList.remove('hidden');
+  };
+
+  triggerButton.addEventListener('click', openOverlay);
+  cancelButton?.addEventListener('click', closeOverlay);
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) closeOverlay();
+  });
+  fileInput.addEventListener('change', () => {
+    if (!isLoading) updateLoadButton();
+  });
+
+  loadButton.addEventListener('click', () => {
+    if (!hasSelection() || isLoading || !onLoadHandler) return;
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    isLoading = true;
+    updateLoadButton();
+    reader.onload = () => {
+      isLoading = false;
+      updateLoadButton();
+      closeOverlay();
+      onLoadHandler(String(reader.result));
+    };
+    reader.onerror = () => {
+      isLoading = false;
+      updateLoadButton();
+      alert('Unable to read that CSV file. Please try again.');
+    };
+    reader.readAsText(file);
+  });
+
+  triggerButton.disabled = true;
+  closeOverlay();
+
+  return {
+    show: () => openOverlay(),
+    enableTrigger: () => {
+      isReady = true;
+      triggerButton.disabled = false;
+    },
+    disableTrigger: () => {
+      isReady = false;
+      triggerButton.disabled = true;
+      closeOverlay();
+    },
+    setOnLoad: (handler) => {
+      onLoadHandler = handler;
+    },
+  };
+}
+
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -104,7 +249,14 @@ function makePivot(target, mode = 'center') {
 }
 
 // ---- GLB loader (plain; no motion wiring yet) ----
-function loadModel() {
+function loadModel(sourceUrl, { onSuccess, onError, onFinally } = {}) {
+  if (!sourceUrl) {
+    console.warn('[BASE] No GLB source specified for loadModel().');
+    return;
+  }
+
+  motionLoaderUI?.disableTrigger?.();
+
   const loader = new GLTFLoader();
   const dracoLoader = new DRACOLoader();
   // Draco requirements -------------------------------
@@ -113,7 +265,7 @@ function loadModel() {
   loader.setDRACOLoader(dracoLoader);
   // ---------------------------------------------------
   loader.load(
-    './assets/model.glb',                // adjust path/name
+    sourceUrl,
     (gltf) => {
       const model = gltf.scene;
       // Optional: do NOT recenter if you fixed bounding box/origin alignment already
@@ -157,7 +309,12 @@ function loadModel() {
       // console.log('Pivot A:', pivotA?.name, 'Pivot B:', pivotB?.name, 'Pivot C:', pivotC?.name);
 
       motion = initMotionPlayer({ model, clock, controls });
-      motion.attachFileInput('#csvFile'); // hook the input
+      motionLoaderUI?.setOnLoad?.((csvText) => motion.loadCSVText(csvText));
+      motionLoaderUI?.enableTrigger?.();
+      motionLoaderUI?.show?.();
+
+      onSuccess?.(gltf);
+      onFinally?.();
     },
     (xhr) => {
       if (xhr.total) {
@@ -167,6 +324,12 @@ function loadModel() {
     },
     (err) => {
       console.error('[BASE] GLB load error:', err);
+      if (motion) {
+        motionLoaderUI?.setOnLoad?.((csvText) => motion.loadCSVText(csvText));
+        motionLoaderUI?.enableTrigger?.();
+      }
+      onError?.(err);
+      onFinally?.();
     }
   );
 }
