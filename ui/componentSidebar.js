@@ -116,44 +116,138 @@ export function initComponentSidebar({ scene, onEvenLightingChange, initialEvenL
     listEl.innerHTML = '';
     clearHighlightHelpers();
 
-    const nameMap = new Map();
-    model.traverse((obj) => {
-      if (!obj.isMesh || !obj.name) return;
-      if (!nameMap.has(obj.name)) nameMap.set(obj.name, []);
-      nameMap.get(obj.name).push(obj);
-    });
-
-    const entries = Array.from(nameMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const entries = gatherNamedEntries(model);
     summaryEl.textContent = entries.length
       ? `${entries.length} components detected`
       : 'No components detected';
 
     if (!entries.length) {
-      renderEmpty('No mesh nodes with names were found in this model.');
+      renderEmpty('No named nodes were found in this model.');
     } else {
-      for (const [name, nodes] of entries) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'overview-item';
-        button.textContent = name;
-        button.addEventListener('click', () => {
-          if (activeButton === button) {
-            button.classList.remove('active');
-            activeButton = null;
-            clearHighlightHelpers();
-            return;
-          }
-          highlightComponents(nodes);
-          if (activeButton) activeButton.classList.remove('active');
-          button.classList.add('active');
-          activeButton = button;
-        });
-        listEl.appendChild(button);
-      }
+      renderEntries(entries);
     }
 
     isReady = true;
     setDisabled(false);
+  }
+
+  function gatherNamedEntries(root) {
+    const entries = [];
+    function walk(object, depth, parentId = null) {
+      let currentDepth = depth;
+      let nodeId = parentId;
+      if (object.name) {
+        nodeId = `${object.uuid}`;
+        const entry = { id: nodeId, name: object.name, object, depth, parentId, children: [] };
+        entries.push(entry);
+        if (parentId) {
+          const parentEntry = entries.find((e) => e.id === parentId);
+          parentEntry?.children.push(nodeId);
+        }
+        currentDepth = depth + 1;
+      }
+      object.children.forEach((child) => walk(child, currentDepth, nodeId));
+    }
+    root.children.forEach((child) => walk(child, 0));
+    return entries;
+  }
+
+  function renderEntries(entries) {
+    const collapsed = new Set();
+    const entryElements = new Map();
+    const idToEntry = new Map(entries.map((entry) => [entry.id, entry]));
+
+    const buildButton = (entry) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'overview-item';
+      button.dataset.entryId = entry.id;
+
+      const content = document.createElement('div');
+      content.className = 'overview-item-content';
+
+      if (entry.children?.length) {
+        const caret = document.createElement('button');
+        caret.type = 'button';
+        caret.className = 'overview-caret';
+        caret.textContent = '▾';
+        caret.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleCollapse(entry.id, caret);
+        });
+        content.appendChild(caret);
+      } else {
+        const spacer = document.createElement('span');
+        spacer.style.width = '1rem';
+        spacer.ariaHidden = 'true';
+        content.appendChild(spacer);
+      }
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'overview-name';
+      nameSpan.textContent = entry.name;
+      content.appendChild(nameSpan);
+
+      button.style.paddingLeft = `${0.75 + entry.depth * 0.85}rem`;
+      button.appendChild(content);
+
+      button.addEventListener('click', () => {
+        if (activeButton === button) {
+          button.classList.remove('active');
+          activeButton = null;
+          clearHighlightHelpers();
+          return;
+        }
+        const nodes = collectMeshes(entry.object);
+        highlightComponents(nodes);
+        if (activeButton) activeButton.classList.remove('active');
+        button.classList.add('active');
+        activeButton = button;
+      });
+
+      return button;
+    };
+
+    const toggleCollapse = (id, caretButton) => {
+      if (collapsed.has(id)) {
+        collapsed.delete(id);
+        caretButton.classList.remove('collapsed');
+        updateVisibility(id, false);
+      } else {
+        collapsed.add(id);
+        caretButton.classList.add('collapsed');
+        updateVisibility(id, true);
+      }
+    };
+
+    const updateVisibility = (parentId, hide) => {
+      const queue = [...(idToEntry.get(parentId)?.children ?? [])];
+      while (queue.length) {
+        const childId = queue.shift();
+        const el = entryElements.get(childId);
+        if (!el) continue;
+        el.style.display = hide ? 'none' : '';
+        if (collapsed.has(childId)) continue;
+        queue.push(...(idToEntry.get(childId)?.children ?? []));
+      }
+    };
+
+    entries.forEach((entry) => {
+      const button = buildButton(entry);
+      entryElements.set(entry.id, button);
+      if (entry.parentId && collapsed.has(entry.parentId)) {
+        button.style.display = 'none';
+      }
+      listEl.appendChild(button);
+    });
+  }
+
+  function collectMeshes(object) {
+    const nodes = [];
+    object.traverse((child) => {
+      if (child.isMesh) nodes.push(child);
+    });
+    return nodes;
   }
 
   function syncCameraPreset(name) {
