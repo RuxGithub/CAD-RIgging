@@ -137,6 +137,12 @@ export function initComponentSidebar({ scene, onEvenLightingChange, initialEvenL
         button.className = 'overview-item';
         button.textContent = name;
         button.addEventListener('click', () => {
+          if (activeButton === button) {
+            button.classList.remove('active');
+            activeButton = null;
+            clearHighlightHelpers();
+            return;
+          }
           highlightComponents(nodes);
           if (activeButton) activeButton.classList.remove('active');
           button.classList.add('active');
